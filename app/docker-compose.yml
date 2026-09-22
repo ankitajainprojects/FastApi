@@ -1,21 +1,27 @@
 services:
   api:
     build: .
+    container_name: fastapi_app
     ports:
       - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-    depends_on:
-      - db
+    networks:
+      - backend
 
   db:
     image: postgres:16
+    container_name: postgres_db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: postgresuser
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: bookdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
 
 volumes:
   postgres_data:

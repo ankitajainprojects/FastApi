@@ -5,7 +5,7 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 DB_USER = os.getenv("POSTGRES_USER", "postgresuser")
 DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
-DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_HOST = os.getenv("DB_HOST", "db")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("POSTGRES_DB", "bookdb")
 
@@ -23,4 +23,4 @@ def get_db():
     try:
         yield db
     finally:
-        db.close()
+        db.close()            
