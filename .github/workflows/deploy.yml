@@ -15,6 +15,9 @@ jobs:
   docker:
     runs-on: ubuntu-latest
 
+    env:
+      IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi
+
     steps:
       # -----------------------------------------
       # Checkout
@@ -32,8 +35,31 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # -----------------------------------------
+      # Determine Docker image tags
+      # -----------------------------------------
+      - name: Set Docker image tags
+        id: tags
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "tags<<EOF" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE}:latest" >> "$GITHUB_OUTPUT"
+            echo "EOF"
+          else
+            echo "version=latest" >> "$GITHUB_OUTPUT"
+            echo "tags<<EOF" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE}:latest" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "EOF"
+          fi
+
+      # -----------------------------------------
       # Build image locally
-      # IMPORTANT: Do NOT push here
+      # IMPORTANT: Do not push yet
       # -----------------------------------------
       - name: Build Docker image
         uses: docker/build-push-action@v6
@@ -42,37 +68,23 @@ jobs:
           load: true
           push: false
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+            ${{ steps.tags.outputs.tags }}
 
       # -----------------------------------------
       # Trivy full vulnerability scan
-      # Generates SARIF
       # -----------------------------------------
       - name: Trivy Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
           format: sarif
           output: trivy-results.sarif
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           exit-code: 0
 
-      # -----------------------------------------
-      # Generate human-readable Trivy report
-      # -----------------------------------------
-      - name: Generate Trivy table report
-        if: always()
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
-          format: table
-          output: trivy-report.txt
-          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-          exit-code: 0
 
       # -----------------------------------------
-      # Add Trivy report to GitHub Actions summary
+      # Add report to GitHub Actions summary
       # -----------------------------------------
       - name: Add Trivy report to build summary
         if: always()
@@ -84,7 +96,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       # -----------------------------------------
-      # Upload Trivy reports as artifacts
+      # Upload reports as artifacts
       # -----------------------------------------
       - name: Upload Trivy report
         if: always()
@@ -98,22 +110,30 @@ jobs:
 
       # -----------------------------------------
       # Security gate
-      # HIGH / CRITICAL vulnerabilities fail job
+      # HIGH / CRITICAL = fail
       # -----------------------------------------
-      - name: Check CRITICAL vulnerabilities
+      - name: Check HIGH and CRITICAL vulnerabilities
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
           format: table
-          severity: CRITICAL
+          severity: HIGH,CRITICAL
           exit-code: 1
           ignore-unfixed: false
 
       # -----------------------------------------
-      # Push the EXACT image that was scanned
+      # Push exact image that was scanned
       # -----------------------------------------
       - name: Push Docker image
         if: success()
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:latest
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+
+            docker push "${IMAGE}:${VERSION}"
+            docker push "${IMAGE}:${GITHUB_SHA}"
+            docker push "${IMAGE}:latest"
+          else
+            docker push "${IMAGE}:latest"
+            docker push "${IMAGE}:${GITHUB_SHA}"
+          fi
