@@ -56,7 +56,6 @@ jobs:
         with:
           image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}"
           format: table
-          severity: "HIGH,CRITICAL"
           ignore-unfixed: true
           exit-code: 0
 
