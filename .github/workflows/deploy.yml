@@ -2,8 +2,6 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*.*.*"
 
@@ -16,8 +14,10 @@ jobs:
 
     env:
       IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi
+      VERSION: ${{ github.ref_name }}
 
     steps:
+
       # -----------------------------------------
       # Checkout
       # -----------------------------------------
@@ -34,24 +34,14 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # -----------------------------------------
-      # Build Docker image locally
+      # Build Docker image
       # -----------------------------------------
       - name: Build Docker image
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            VERSION="${GITHUB_REF_NAME}"
-
-            docker build \
-              -t "${IMAGE}:${VERSION}" \
-              -t "${IMAGE}:${GITHUB_SHA}" \
-              -t "${IMAGE}:latest" \
-              ./app
-          else
-            docker build \
-              -t "${IMAGE}:${GITHUB_SHA}" \
-              -t "${IMAGE}:latest" \
-              ./app
-          fi
+          docker build \
+            -t "${IMAGE}:${VERSION}" \
+            -t "${IMAGE}:${GITHUB_SHA}" \
+            ./app
 
       # -----------------------------------------
       # Trivy full vulnerability scan
@@ -62,11 +52,11 @@ jobs:
           image-ref: ${{ env.IMAGE }}:${{ github.sha }}
           format: sarif
           output: trivy-results.sarif
-          severity: CRITICAL
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           exit-code: 0
 
       # -----------------------------------------
-      # Generate human-readable Trivy report
+      # Generate human-readable report
       # -----------------------------------------
       - name: Generate Trivy table report
         if: always()
@@ -79,7 +69,7 @@ jobs:
           exit-code: 0
 
       # -----------------------------------------
-      # Add Trivy report to Actions summary
+      # Add report to Actions summary
       # -----------------------------------------
       - name: Add Trivy report to build summary
         if: always()
@@ -91,7 +81,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       # -----------------------------------------
-      # Upload Trivy reports as artifacts
+      # Upload Trivy report
       # -----------------------------------------
       - name: Upload Trivy report
         if: always()
@@ -105,7 +95,6 @@ jobs:
 
       # -----------------------------------------
       # Security gate
-      # HIGH / CRITICAL = fail
       # -----------------------------------------
       - name: Check CRITICAL vulnerabilities
         uses: aquasecurity/trivy-action@master
@@ -117,18 +106,10 @@ jobs:
           ignore-unfixed: false
 
       # -----------------------------------------
-      # Push exact image that was scanned
+      # Push release image
       # -----------------------------------------
       - name: Push Docker image
         if: success()
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            VERSION="${GITHUB_REF_NAME}"
-
-            docker push "${IMAGE}:${VERSION}"
-            docker push "${IMAGE}:${GITHUB_SHA}"
-            docker push "${IMAGE}:latest"
-          else
-            docker push "${IMAGE}:${GITHUB_SHA}"
-            docker push "${IMAGE}:latest"
-          fi
+          docker push "${IMAGE}:${VERSION}"
+          docker push "${IMAGE}:${GITHUB_SHA}"
