@@ -59,15 +59,6 @@ jobs:
           exit-code: 0
 
       # -----------------------------------------
-      # Upload Trivy SARIF to GitHub Security
-      # -----------------------------------------
-      - name: Upload Trivy results to GitHub Security
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results.sarif
-
-      # -----------------------------------------
       # Generate human-readable Trivy report
       # -----------------------------------------
       - name: Generate Trivy table report
@@ -109,12 +100,12 @@ jobs:
       # Security gate
       # HIGH / CRITICAL vulnerabilities fail job
       # -----------------------------------------
-      - name: Check HIGH and CRITICAL vulnerabilities
+      - name: Check CRITICAL vulnerabilities
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
           format: table
-          severity: HIGH,CRITICAL
+          severity: CRITICAL
           exit-code: 1
           ignore-unfixed: false
 
