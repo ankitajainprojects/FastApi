@@ -2,7 +2,6 @@ from typing import Annotated
 from datetime import datetime, timedelta, timezone
 import secrets
 
-from dotenv import dotenv_values
 from fastapi import Depends, HTTPException, status
 from fastapi.security import (
     HTTPBasic,
@@ -15,20 +14,20 @@ from jose import JWTError, jwt
 
 
 
-config = dotenv_values(".env")
 
-AUTH_TYPE = config.get("AUTH_TYPE", "basic").lower()
+import os
 
-EXPECTED_USERNAME = config.get("BASIC_AUTH_USERNAME")
-EXPECTED_PASSWORD = config.get("BASIC_AUTH_PASSWORD")
+AUTH_TYPE = os.getenv("AUTH_TYPE", "basic").lower()
 
-JWT_SECRET_KEY = config.get("JWT_SECRET_KEY")
-JWT_ALGORITHM = config.get("JWT_ALGORITHM", "HS256")
+EXPECTED_USERNAME = os.getenv("BASIC_AUTH_USERNAME")
+EXPECTED_PASSWORD = os.getenv("BASIC_AUTH_PASSWORD")
+
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 JWT_EXPIRE_MINUTES = int(
-    config.get("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30")
+    os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30")
 )
-
 
 
 
