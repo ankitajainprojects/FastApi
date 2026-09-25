@@ -33,18 +33,21 @@ jobs:
 
       # -----------------------------------------
       # Build image locally
+      # IMPORTANT: Do NOT push here
       # -----------------------------------------
       - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
           context: ./app
           load: true
+          push: false
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
 
       # -----------------------------------------
       # Trivy full vulnerability scan
+      # Generates SARIF
       # -----------------------------------------
       - name: Trivy Scan
         uses: aquasecurity/trivy-action@master
@@ -65,21 +68,21 @@ jobs:
           sarif_file: trivy-results.sarif
 
       # -----------------------------------------
-      # Add human-readable Trivy report
-      # to GitHub Actions summary
+      # Generate human-readable Trivy report
       # -----------------------------------------
       - name: Generate Trivy table report
         if: always()
-        run: |
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest \
-            image \
-            --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
-            --format table \
-            "${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}" \
-            > trivy-report.txt
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+          format: table
+          output: trivy-report.txt
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: 0
 
+      # -----------------------------------------
+      # Add Trivy report to GitHub Actions summary
+      # -----------------------------------------
       - name: Add Trivy report to build summary
         if: always()
         run: |
@@ -90,7 +93,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       # -----------------------------------------
-      # Upload report as GitHub Artifact
+      # Upload Trivy reports as artifacts
       # -----------------------------------------
       - name: Upload Trivy report
         if: always()
@@ -116,13 +119,10 @@ jobs:
           ignore-unfixed: false
 
       # -----------------------------------------
-      # Push only if security gate passes
+      # Push the EXACT image that was scanned
       # -----------------------------------------
       - name: Push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./app
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+        if: success()
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:latest
