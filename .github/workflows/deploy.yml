@@ -34,38 +34,24 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # -----------------------------------------
-      # Determine Docker image tags
+      # Build Docker image locally
       # -----------------------------------------
-      - name: Set Docker image tags
-        id: tags
+      - name: Build Docker image
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             VERSION="${GITHUB_REF_NAME}"
 
-            echo "tags<<EOF" >> "$GITHUB_OUTPUT"
-            echo "${IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
-            echo "${IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-            echo "${IMAGE}:latest" >> "$GITHUB_OUTPUT"
-            echo "EOF"
+            docker build \
+              -t "${IMAGE}:${VERSION}" \
+              -t "${IMAGE}:${GITHUB_SHA}" \
+              -t "${IMAGE}:latest" \
+              ./app
           else
-            echo "tags<<EOF" >> "$GITHUB_OUTPUT"
-            echo "${IMAGE}:latest" >> "$GITHUB_OUTPUT"
-            echo "${IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-            echo "EOF"
+            docker build \
+              -t "${IMAGE}:${GITHUB_SHA}" \
+              -t "${IMAGE}:latest" \
+              ./app
           fi
-
-      # -----------------------------------------
-      # Build image locally
-      # Do NOT push yet
-      # -----------------------------------------
-      - name: Build Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./app
-          load: true
-          push: false
-          tags: |
-            ${{ steps.tags.outputs.tags }}
 
       # -----------------------------------------
       # Trivy full vulnerability scan
@@ -93,7 +79,7 @@ jobs:
           exit-code: 0
 
       # -----------------------------------------
-      # Add Trivy report to GitHub Actions summary
+      # Add Trivy report to Actions summary
       # -----------------------------------------
       - name: Add Trivy report to build summary
         if: always()
@@ -105,7 +91,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       # -----------------------------------------
-      # Upload Trivy report as GitHub Artifact
+      # Upload Trivy reports as artifacts
       # -----------------------------------------
       - name: Upload Trivy report
         if: always()
@@ -143,6 +129,6 @@ jobs:
             docker push "${IMAGE}:${GITHUB_SHA}"
             docker push "${IMAGE}:latest"
           else
-            docker push "${IMAGE}:latest"
             docker push "${IMAGE}:${GITHUB_SHA}"
+            docker push "${IMAGE}:latest"
           fi
