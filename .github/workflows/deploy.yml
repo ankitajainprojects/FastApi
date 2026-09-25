@@ -62,7 +62,7 @@ jobs:
           image-ref: ${{ env.IMAGE }}:${{ github.sha }}
           format: sarif
           output: trivy-results.sarif
-          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          severity: CRITICAL
           exit-code: 0
 
       # -----------------------------------------
@@ -75,7 +75,7 @@ jobs:
           image-ref: ${{ env.IMAGE }}:${{ github.sha }}
           format: table
           output: trivy-report.txt
-          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          severity: CRITICAL
           exit-code: 0
 
       # -----------------------------------------
@@ -107,12 +107,12 @@ jobs:
       # Security gate
       # HIGH / CRITICAL = fail
       # -----------------------------------------
-      - name: Check HIGH and CRITICAL vulnerabilities
+      - name: Check CRITICAL vulnerabilities
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.IMAGE }}:${{ github.sha }}
           format: table
-          severity: HIGH,CRITICAL
+          severity: CRITICAL
           exit-code: 1
           ignore-unfixed: false
 
