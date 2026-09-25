@@ -4,26 +4,125 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   docker:
     runs-on: ubuntu-latest
 
     steps:
+      # -----------------------------------------
+      # Checkout
+      # -----------------------------------------
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # -----------------------------------------
+      # Docker Hub login
+      # -----------------------------------------
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      # -----------------------------------------
+      # Build image locally
+      # IMPORTANT: Do NOT push here
+      # -----------------------------------------
+      - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
           context: ./app
-          push: true
+          load: true
+          push: false
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+
+      # -----------------------------------------
+      # Trivy full vulnerability scan
+      # Generates SARIF
+      # -----------------------------------------
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: 0
+
+      # -----------------------------------------
+      # Upload Trivy SARIF to GitHub Security
+      # -----------------------------------------
+      - name: Upload Trivy results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      # -----------------------------------------
+      # Generate human-readable Trivy report
+      # -----------------------------------------
+      - name: Generate Trivy table report
+        if: always()
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+          format: table
+          output: trivy-report.txt
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: 0
+
+      # -----------------------------------------
+      # Add Trivy report to GitHub Actions summary
+      # -----------------------------------------
+      - name: Add Trivy report to build summary
+        if: always()
+        run: |
+          echo "## 🔍 Trivy Security Scan" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          cat trivy-report.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # -----------------------------------------
+      # Upload Trivy reports as artifacts
+      # -----------------------------------------
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: |
+            trivy-results.sarif
+            trivy-report.txt
+          retention-days: 30
+
+      # -----------------------------------------
+      # Security gate
+      # HIGH / CRITICAL vulnerabilities fail job
+      # -----------------------------------------
+      - name: Check HIGH and CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: 1
+          ignore-unfixed: false
+
+      # -----------------------------------------
+      # Push the EXACT image that was scanned
+      # -----------------------------------------
+      - name: Push Docker image
+        if: success()
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/fastapi:latest
