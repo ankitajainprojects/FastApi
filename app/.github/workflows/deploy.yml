@@ -41,21 +41,16 @@ jobs:
           image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}"
           format: sarif
           output: trivy-results.sarif
-          severity: "HIGH,CRITICAL"
           ignore-unfixed: true
           exit-code: 0
 
-      - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: trivy-results.sarif
-
+ 
       - name: Fail on HIGH or CRITICAL vulnerabilities
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/fastapi:${{ github.sha }}"
           format: table
+          severity: "HIGH,CRITICAL"
           ignore-unfixed: true
           exit-code: 0
 
