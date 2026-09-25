@@ -53,6 +53,17 @@ jobs:
           output: trivy-results.sarif
           exit-code: 0
 
+      - name: Add Trivy report to build summary
+        if: always()
+        run: |
+            {
+          echo "## 🔍 Trivy Security Scan"
+          echo
+          echo '```text'
+          cat trivy-report.txt
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"    
+
 
       # -----------------------------------------
       # Upload report as GitHub Artifact
